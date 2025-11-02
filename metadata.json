@@ -1,0 +1,5 @@
+{
+  "name": "AML SafetyNet",
+  "description": "A SaaS platform for clients to upload their AML compliance policies and verify them against current Canadian FINTRAC regulations using AI.",
+  "requestFramePermissions": []
+}
