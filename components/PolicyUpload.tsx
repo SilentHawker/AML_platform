@@ -1,5 +1,7 @@
+
+
 import React, { useState, useCallback } from 'react';
-import { analyzePolicy } from '../services/geminiService';
+import { performPolicyAnalysis } from '../services/analysisService';
 import { createPolicyAndReview } from '../services/policyService';
 import Spinner from './Spinner';
 import { UploadIcon } from './icons/UploadIcon';
@@ -25,7 +27,6 @@ const PolicyUpload: React.FC<PolicyUploadProps> = ({ onUploadComplete, onCancel 
   const [isDragOver, setIsDragOver] = useState(false);
   
   const activeTenantId = impersonatedTenant?.tenantId || user?.tenantId;
-
 
   const handleFile = async (selectedFile: File) => {
     if (!selectedFile) return;
@@ -144,14 +145,18 @@ const PolicyUpload: React.FC<PolicyUploadProps> = ({ onUploadComplete, onCancel 
     setError(null);
     setIsLoading(true);
     try {
-      const analysisResult = await analyzePolicy(fileContent);
+      // Use the analysis service which orchestrates the entire process, now with tenant context
+      const analysisResult = await performPolicyAnalysis(fileContent, activeTenantId);
       const newPolicy = createPolicyAndReview(policyName, fileContent, analysisResult, activeTenantId);
       onUploadComplete(newPolicy.id);
-    } catch (err: any) {
-      setError(err.message || 'An unknown error occurred during analysis.');
-    } finally {
-      setIsLoading(false);
-    }
+    } catch (err: any)
+      {
+          setError(err.message || 'An unknown error occurred during analysis.');
+      }
+      finally
+      {
+          setIsLoading(false);
+      }
   };
 
   return (
@@ -168,7 +173,7 @@ const PolicyUpload: React.FC<PolicyUploadProps> = ({ onUploadComplete, onCancel 
             onChange={(e) => setPolicyName(e.target.value)}
             placeholder="e.g., Q3 2024 AML Policy"
             required
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white text-gray-900"
           />
         </div>
         <div>
@@ -203,6 +208,7 @@ const PolicyUpload: React.FC<PolicyUploadProps> = ({ onUploadComplete, onCancel 
                 </div>
             </div>
         </div>
+        
         <div className="flex justify-end space-x-3 pt-2">
           <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
             Cancel

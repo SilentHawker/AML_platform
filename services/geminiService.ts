@@ -1,17 +1,7 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 import type { AnalysisResult } from '../types';
-import { getRegulations } from './regulationService';
-
-const API_KEY = process.env.API_KEY;
-
-if (!API_KEY) {
-  // In a real app, you'd handle this more gracefully.
-  // For this environment, we assume API_KEY is set.
-  console.warn("Gemini API key not found. Please set the API_KEY environment variable.");
-}
-
-const ai = new GoogleGenAI({ apiKey: API_KEY! });
+import { getModelConfigById, getDefaultModelConfig } from './modelConfigService';
 
 const responseSchema = {
   type: Type.OBJECT,
@@ -66,23 +56,37 @@ const responseSchema = {
   required: ['overallScore', 'summary', 'findings'],
 };
 
-export const analyzePolicy = async (policyText: string): Promise<AnalysisResult> => {
+/**
+ * A specialized handler that communicates with the Gemini API to analyze a policy.
+ * It takes a fully-formed prompt and system instruction, selects the appropriate model
+ * based on configuration, and expects a JSON response that conforms to the AnalysisResult schema.
+ *
+ * @param prompt The main prompt content, including regulations and policy text.
+ * @param systemInstruction The master prompt that guides the AI's behavior.
+ * @param modelId Optional ID of the specific AI model to use. If not provided, the default model is used.
+ * @returns A promise that resolves to the structured analysis result.
+ */
+export const generateAnalysisFromPrompt = async (prompt: string, systemInstruction: string, modelId?: string): Promise<AnalysisResult> => {
     try {
-        const verifiedRegulations = getRegulations().filter(r => r.isVerified);
-        
-        if (verifiedRegulations.length === 0) {
-            throw new Error("No verified regulations are available for analysis. An administrator must configure and verify regulations first.");
+        const modelConfig = modelId ? getModelConfigById(modelId) : getDefaultModelConfig();
+
+        if (!modelConfig) {
+            throw new Error("No AI model configured. Please ask an administrator to configure a default model.");
         }
 
-        const regulationsContext = verifiedRegulations.map(r => 
-            `Regulation: "${r.name}"\nLink: ${r.link}\nInterpretation: "${r.interpretation}"`
-        ).join('\n\n');
+        if (!modelConfig.apiKey) {
+            console.error("API Key for model is missing:", modelConfig);
+            throw new Error(`API Key for model "${modelConfig.description}" is missing. Please contact an administrator.`);
+        }
+        
+        // Create a new AI instance for each request with the specific key
+        const ai = new GoogleGenAI({ apiKey: modelConfig.apiKey });
 
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-pro",
-            contents: `Here are the verified Canadian FINTRAC regulations to use for your analysis:\n\n---BEGIN REGULATIONS---\n${regulationsContext}\n---END REGULATIONS---\n\nPlease analyze the following Anti-Money Laundering (AML) policy document based *only* on the regulations provided above. Here is the policy text:\n\n---BEGIN POLICY---\n${policyText}\n---END POLICY---`,
+            model: modelConfig.modelName,
+            contents: prompt,
             config: {
-                systemInstruction: "You are an expert AML compliance analyst specializing in Canadian FINTRAC regulations. Your task is to analyze a client's AML policy document. Your analysis MUST be strictly based on the list of verified regulations provided in the prompt. Do not use your general knowledge; only use the rules and interpretations given to you. Provide a detailed analysis, identify compliance gaps, and suggest specific improvements. Structure your response according to the provided JSON schema. When you identify a finding, you MUST include the 'originalText' field, which should contain the exact verbatim text from the policy that your analysis is based on.",
+                systemInstruction: systemInstruction,
                 responseMimeType: "application/json",
                 responseSchema: responseSchema,
                 temperature: 0.1,
@@ -100,10 +104,10 @@ export const analyzePolicy = async (policyText: string): Promise<AnalysisResult>
         return result as AnalysisResult;
 
     } catch (error) {
-        console.error("Error analyzing policy with Gemini:", error);
-        if (error instanceof Error && error.message.includes("regulations")) {
+        console.error("Error generating analysis from Gemini:", error);
+        if (error instanceof Error && (error.message.includes("model"))) {
             throw error;
         }
-        throw new Error("Failed to get a valid analysis from the AI. The policy might be too complex or the service may be unavailable.");
+        throw new Error("Failed to get a valid analysis from the AI. The service may be unavailable or the model configuration is incorrect.");
     }
 };

@@ -118,7 +118,7 @@ const ChangeCard: React.FC<ChangeCardProps> = ({ change, onUpdate, readOnly = fa
                 id={`edit-${change.id}`}
                 value={editText}
                 onChange={(e) => setEditText(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
+                className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm bg-white text-gray-900"
                 rows={4}
             />
             <div className="flex justify-end space-x-2 mt-2">

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { useAuth } from '../hooks/useAuth';
@@ -82,7 +83,7 @@ const TenantSwitcher: React.FC = () => {
 };
 
 const Header: React.FC<HeaderProps> = ({ isAuthenticated, userEmail, userRole, onLogout }) => {
-  const { stopImpersonation } = useAuth();
+  const { stopImpersonation, impersonatedTenant } = useAuth();
   
   return (
     <header className="bg-white shadow-sm sticky top-0 z-10">
@@ -94,17 +95,31 @@ const Header: React.FC<HeaderProps> = ({ isAuthenticated, userEmail, userRole, o
           </div>
           {isAuthenticated && (
             <div className="hidden md:flex items-center space-x-6 border-l border-gray-200 pl-6">
-              <button
-                onClick={(e) => e.preventDefault()}
-                className="text-sm font-semibold text-blue-600"
-                aria-current="page"
-              >
-                Dashboard
-              </button>
+              {userRole !== 'admin' && (
+                <button
+                  className="text-sm font-semibold text-blue-600"
+                  aria-current="page"
+                >
+                  Dashboard
+                </button>
+              )}
               {userRole === 'admin' && (
-                 <button onClick={(e) => {e.preventDefault(); stopImpersonation();}} className="text-sm font-medium text-gray-500 hover:text-blue-600">
+                <>
+                  {impersonatedTenant && (
+                    <button
+                      className="text-sm font-semibold text-blue-600"
+                      aria-current="page"
+                    >
+                      Dashboard
+                    </button>
+                  )}
+                  <button
+                    onClick={(e) => {e.preventDefault(); stopImpersonation();}}
+                    className={`text-sm font-medium transition-colors ${!impersonatedTenant ? 'text-blue-600 font-semibold' : 'text-gray-500 hover:text-blue-600'}`}
+                  >
                     Admin Panel
-                 </button>
+                  </button>
+                </>
               )}
             </div>
           )}
