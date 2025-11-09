@@ -1,217 +1,155 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getPendingPolicyReview, getPolicyById, finalizePolicyUpdate } from '../services/policyService';
-import type { Policy, PolicyReview, SuggestedChange } from '../types';
+import { getPolicyById, finalizePolicyUpdate } from '../services/policyService';
+import type { Policy, SuggestedChange } from '../types';
 import Spinner from './Spinner';
-import ChangeCard from './ChangeCard';
 import FullPolicyView from './FullPolicyView';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import ChangeCard from './ChangeCard';
 
 interface ReviewChangesProps {
   policyId: string;
-  tenantId: string;
+  tenantId: string; // tenantId may not be needed if policyId is globally unique
   onBack: () => void;
   onComplete: () => void;
 }
 
-type ViewMode = 'segmented' | 'document';
-
-const ReviewChanges: React.FC<ReviewChangesProps> = ({ policyId, tenantId, onBack, onComplete }) => {
+const ReviewChanges: React.FC<ReviewChangesProps> = ({ policyId, onBack, onComplete }) => {
   const [policy, setPolicy] = useState<Policy | null>(null);
-  const [review, setReview] = useState<PolicyReview | null>(null);
+  const [changes, setChanges] = useState<SuggestedChange[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFinalizing, setIsFinalizing] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>('document');
-  
-  // Create a component-level state to manage the changes during the review
-  const [changes, setChanges] = useState<SuggestedChange[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedChangeId, setSelectedChangeId] = useState<string | null>(null);
 
   useEffect(() => {
-    // When the component loads or the policyId changes, refetch everything.
-    // This is especially important after a new policy upload.
-    setIsLoading(true);
-    const policyData = getPolicyById(policyId, tenantId);
-    const reviewData = getPendingPolicyReview(policyId);
-    if (policyData) {
-      setPolicy(policyData);
-      // A policy might exist without a review if all findings were compliant
-      if (reviewData) {
-          setReview(reviewData);
-          setChanges(reviewData.changes.map(c => ({...c}))); // Deep copy for local state
-      } else {
-          setReview(null);
-          setChanges([]);
-      }
+    const fetchPolicy = async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            const policyData = await getPolicyById(policyId);
+            if (policyData) {
+                setPolicy(policyData);
+                if (policyData.review) {
+                  setChanges(policyData.review.changes);
+                }
+            } else {
+                setError("Policy not found. If you reloaded the page, this temporary review may have been lost.");
+            }
+        } catch (err: any) {
+            setError(err.message || "Failed to load policy.");
+        } finally {
+            setIsLoading(false);
+        }
     }
-    setIsLoading(false);
-  }, [policyId, tenantId]);
+    fetchPolicy();
+  }, [policyId]);
 
-  const handleUpdateChange = (updatedChange: SuggestedChange) => {
-    setChanges(prevChanges => 
-      prevChanges.map(c => c.id === updatedChange.id ? updatedChange : c)
-    );
-  };
-  
-  const handleAcceptAll = () => {
-    setChanges(prevChanges => 
-      prevChanges.map(c => 
-        c.status === 'pending' ? { ...c, status: 'accepted' } : c
-      )
+  const handleStatusChange = (changeId: string, newStatus: 'accepted' | 'rejected') => {
+    setChanges(currentChanges =>
+      currentChanges.map(c => (c.id === changeId ? { ...c, status: newStatus } : c))
     );
   };
 
-  const reviewedCount = useMemo(() => {
-    return changes.filter(c => c.status !== 'pending').length;
-  }, [changes]);
-
-  const totalCount = changes.length;
-  const isReviewComplete = reviewedCount === totalCount;
-  const progressPercentage = totalCount > 0 ? (reviewedCount / totalCount) * 100 : 0;
-  
-  const originalPolicyText = useMemo(() => {
-    if (!policy) return '';
-    const latestVersion = policy.versions.find(v => v.version === policy.currentVersion);
-    return latestVersion?.text || '';
-  }, [policy]);
-
-  const handleFinalize = () => {
+  const handleFinalize = async () => {
     if (!policy) return;
     setIsFinalizing(true);
-    
-    // FIX: Ensure updatedText starts as a string to prevent runtime errors.
-    // This handles cases where data might be corrupted (e.g. in localStorage).
-    let updatedText = originalPolicyText;
-    
-    const acceptedChanges = changes.filter(c => c.status === 'accepted' || c.status === 'modified');
-
-    acceptedChanges.forEach(change => {
-        // FIX: Safely determine the text to insert, providing a fallback.
-        // Removes the risky non-null assertion (!) and handles undefined gracefully.
-        const textToInsert = (change.status === 'modified' ? change.modifiedText : change.suggestedText) || '';
-        if (change.originalText) {
-            updatedText = updatedText.replace(change.originalText, textToInsert);
-        }
-    });
-
     try {
-        finalizePolicyUpdate(policy.id, tenantId, updatedText, changes);
-        setTimeout(() => { // Simulate network delay
+        await finalizePolicyUpdate(policy, changes);
+        setTimeout(() => {
             onComplete();
         }, 1000);
-    } catch(e) {
+    } catch(e: any) {
         console.error("Failed to finalize policy:", e);
+        setError(e.message || "An unknown error occurred.");
         setIsFinalizing(false);
     }
   };
 
+  const { acceptedCount, rejectedCount, pendingCount } = useMemo(() => {
+    return changes.reduce((acc, c) => {
+        if (c.status === 'accepted') acc.acceptedCount++;
+        else if (c.status === 'rejected') acc.rejectedCount++;
+        else acc.pendingCount++;
+        return acc;
+    }, { acceptedCount: 0, rejectedCount: 0, pendingCount: 0 });
+  }, [changes]);
+
+
   if (isLoading) {
     return <div className="text-center p-8"><Spinner /></div>;
   }
-
-  if (!policy) {
+  
+  if (error) {
     return (
       <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
         <h2 className="text-xl font-semibold text-red-700">Error</h2>
-        <p className="text-gray-600">Could not load the policy or review details for this client.</p>
+        <p className="text-gray-600">{error}</p>
         <button onClick={onBack} className="mt-4 text-blue-600 hover:underline">Go Back</button>
       </div>
     );
   }
 
+  if (!policy || policy.status !== 'Review Required' || !policy.review) {
+    return (
+      <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 text-center">
+        <CheckCircleIcon className="h-12 w-12 text-green-500 mx-auto" />
+        <h3 className="text-xl font-semibold text-gray-800 mt-4">No Review Required</h3>
+        <p className="text-gray-600 mt-2">This policy is already active or has no pending changes.</p>
+        <button onClick={onBack} className="mt-6 text-blue-600 hover:underline">Return to Dashboard</button>
+      </div>
+    );
+  }
+  
+  const originalPolicyText = policy.versions.find(v => v.version === policy.currentVersion)?.text || '';
+
   return (
     <div className="space-y-6">
       <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-        <div className="border-b pb-4 mb-4">
-            <button onClick={onBack} className="text-sm text-blue-600 hover:underline mb-2">&larr; Back to Dashboard</button>
-            <h2 className="text-2xl font-bold text-gray-800">Reviewing: {policy.name}</h2>
-            <p className="text-sm text-gray-500">Triggered by: <strong>{review?.triggeredBy ?? 'Initial Analysis'}</strong></p>
+        <button onClick={onBack} className="text-sm text-blue-600 hover:underline mb-2">&larr; Back to Dashboard</button>
+        <h2 className="text-2xl font-bold text-gray-800">Reviewing: {policy.name}</h2>
+        <p className="text-sm text-gray-500">AI has identified {changes.length} potential improvements. Accept or reject each suggestion below.</p>
+        <div className="mt-3 text-sm font-medium flex space-x-4">
+            <span className="text-green-600">{acceptedCount} Accepted</span>
+            <span className="text-red-600">{rejectedCount} Rejected</span>
+            <span className="text-gray-600">{pendingCount} Pending</span>
         </div>
-        
-        {/* Progress Bar */}
-        {totalCount > 0 && (
-          <div>
-              <div className="flex justify-between items-center mb-1">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-700">Review Progress</h3>
-                    <span className="text-sm font-medium text-gray-600">{reviewedCount} of {totalCount} changes reviewed</span>
-                  </div>
-                  <button
-                    onClick={handleAcceptAll}
-                    disabled={isReviewComplete}
-                    className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                  >
-                    Accept All Pending
-                  </button>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div>
-              </div>
-          </div>
-        )}
       </div>
-      
-      {/* View Toggler */}
-      {totalCount > 0 && (
-        <div className="flex justify-center">
-            <div className="inline-flex rounded-md shadow-sm">
-                <button
-                    onClick={() => setViewMode('segmented')}
-                    className={`px-4 py-2 text-sm font-medium border border-gray-300 rounded-l-lg transition-colors ${
-                        viewMode === 'segmented'
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'bg-white text-gray-700 hover:bg-gray-50'
-                    } focus:z-10 focus:ring-2 focus:ring-blue-500`}
-                >
-                    Segmented View
-                </button>
-                <button
-                    onClick={() => setViewMode('document')}
-                    className={`-ml-px px-4 py-2 text-sm font-medium border border-gray-300 rounded-r-lg transition-colors ${
-                        viewMode === 'document'
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'bg-white text-gray-700 hover:bg-gray-50'
-                    } focus:z-10 focus:ring-2 focus:ring-blue-500`}
-                >
-                    Full Document View
-                </button>
-            </div>
-        </div>
-      )}
 
-      {totalCount === 0 ? (
-        <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 text-center">
-            <CheckCircleIcon className="h-12 w-12 text-green-500 mx-auto" />
-            <h3 className="text-xl font-semibold text-gray-800 mt-4">No Compliance Issues Found</h3>
-            <p className="text-gray-600 mt-2">Our analysis did not find any non-compliant sections in this policy. No changes are required.</p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left Pane: Changes */}
+        <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+            {changes.length > 0 ? changes.map(change => (
+              <ChangeCard 
+                key={change.id} 
+                change={change} 
+                onStatusChange={handleStatusChange} 
+                isSelected={selectedChangeId === change.id}
+                onClick={() => setSelectedChangeId(change.id)}
+              />
+            )) : <p className="text-center text-gray-500 p-8">No changes were suggested.</p>}
         </div>
-      ) : viewMode === 'segmented' ? (
-        <div className="space-y-4">
-          {changes.map(change => (
-            <ChangeCard 
-              key={change.id}
-              change={change}
-              onUpdate={handleUpdateChange}
+
+        {/* Right Pane: Full Document */}
+        <div className="max-h-[70vh] overflow-y-auto">
+            <FullPolicyView
+                originalText={originalPolicyText}
+                changes={changes}
             />
-          ))}
         </div>
-      ) : (
-        <FullPolicyView
-            originalText={originalPolicyText}
-            changes={changes}
-        />
-      )}
+      </div>
       
       <div className="bg-white p-4 rounded-lg shadow-md border border-gray-200 sticky bottom-4">
           <div className="flex items-center justify-between">
               <div>
-                  <h4 className="font-semibold">{isReviewComplete ? "Review Complete!" : "Finish Review"}</h4>
-                  <p className="text-sm text-gray-600">{isReviewComplete ? "You can now finalize the document." : "Please address all suggestions to proceed."}</p>
+                  <h4 className="font-semibold">Finish Review</h4>
+                  <p className="text-sm text-gray-600">Accept the changes to create a new, compliant version of your policy.</p>
               </div>
               <button
                 onClick={handleFinalize}
-                disabled={!isReviewComplete || isFinalizing}
+                disabled={isFinalizing || pendingCount > 0}
                 className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
               >
-                {isFinalizing ? <><Spinner /> Finalizing...</> : 'Finalize & Save New Version'}
+                {isFinalizing ? <><Spinner /> Finalizing...</> : pendingCount > 0 ? `Resolve ${pendingCount} more` : 'Finalize & Save New Version'}
               </button>
           </div>
       </div>

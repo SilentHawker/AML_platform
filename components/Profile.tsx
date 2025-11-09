@@ -37,12 +37,12 @@ const Profile: React.FC<ProfileProps> = ({ onStartOnboarding }) => {
     
     const activeTenantId = impersonatedTenant?.tenantId || user?.tenantId;
 
-    const loadProfile = () => {
+    const loadProfile = async () => {
         if (activeTenantId) {
-            const profileData = getProfile(activeTenantId);
+            const profileData = await getProfile(activeTenantId);
             setProfile(profileData || null);
             setCompanyFormData(profileData || {});
-            const qData = getOnboardingData(activeTenantId);
+            const qData = await getOnboardingData(activeTenantId);
             setOnboardingData(qData);
         }
         setIsLoading(false);
@@ -68,11 +68,11 @@ const Profile: React.FC<ProfileProps> = ({ onStartOnboarding }) => {
         });
     };
 
-    const handleSaveCompany = () => {
+    const handleSaveCompany = async () => {
         if (!activeTenantId || !profile) return;
         const updated: CompanyProfile = { ...profile, ...companyFormData } as CompanyProfile;
-        updateProfile(activeTenantId, updated);
-        setProfile(updated);
+        const savedProfile = await updateProfile(activeTenantId, updated);
+        setProfile(savedProfile);
         setIsEditingCompany(false);
     };
 
@@ -92,17 +92,17 @@ const Profile: React.FC<ProfileProps> = ({ onStartOnboarding }) => {
         setIsEmployeeModalOpen(true);
     };
     
-    const handleDeleteEmployee = (employeeId: string) => {
+    const handleDeleteEmployee = async (employeeId: string) => {
         if (!activeTenantId || !profile) return;
         if (window.confirm("Are you sure you want to remove this team member?")) {
             const updatedEmployees = profile.employees.filter(emp => emp.id !== employeeId);
-            const updatedProfile = { ...profile, employees: updatedEmployees };
-            updateProfile(activeTenantId, updatedProfile);
-            setProfile(updatedProfile);
+            const updatedProfileData = { ...profile, employees: updatedEmployees };
+            const savedProfile = await updateProfile(activeTenantId, updatedProfileData);
+            setProfile(savedProfile);
         }
     };
     
-    const handleSaveEmployee = (employee: Omit<Employee, 'id'> | Employee) => {
+    const handleSaveEmployee = async (employee: Omit<Employee, 'id'> | Employee) => {
         if (!activeTenantId || !profile) return;
 
         let updatedEmployees: Employee[];
@@ -113,9 +113,9 @@ const Profile: React.FC<ProfileProps> = ({ onStartOnboarding }) => {
             updatedEmployees = [...profile.employees, newEmployee];
         }
 
-        const updatedProfile = { ...profile, employees: updatedEmployees };
-        updateProfile(activeTenantId, updatedProfile);
-        setProfile(updatedProfile);
+        const updatedProfileData = { ...profile, employees: updatedEmployees };
+        const savedProfile = await updateProfile(activeTenantId, updatedProfileData);
+        setProfile(savedProfile);
         setIsEmployeeModalOpen(false);
     };
 

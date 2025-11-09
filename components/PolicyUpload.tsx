@@ -1,8 +1,7 @@
 
 
 import React, { useState, useCallback } from 'react';
-import { performPolicyAnalysis } from '../services/analysisService';
-import { createPolicyAndReview } from '../services/policyService';
+import { createPolicyWithAnalysis } from '../services/policyService';
 import Spinner from './Spinner';
 import { UploadIcon } from './icons/UploadIcon';
 import { useAuth } from '../hooks/useAuth';
@@ -145,9 +144,8 @@ const PolicyUpload: React.FC<PolicyUploadProps> = ({ onUploadComplete, onCancel 
     setError(null);
     setIsLoading(true);
     try {
-      // Use the analysis service which orchestrates the entire process, now with tenant context
-      const analysisResult = await performPolicyAnalysis(fileContent, activeTenantId);
-      const newPolicy = createPolicyAndReview(policyName, fileContent, analysisResult, activeTenantId);
+      // The new service function handles analysis and policy creation (or simulation)
+      const newPolicy = await createPolicyWithAnalysis(policyName, fileContent, activeTenantId);
       onUploadComplete(newPolicy.id);
     } catch (err: any)
       {

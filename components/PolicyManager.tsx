@@ -1,5 +1,6 @@
+
 import React, { useState, useRef, useEffect } from 'react';
-import type { Policy, PolicyReview } from '../types';
+import type { Policy } from '../types';
 import { FileTextIcon } from './icons/FileTextIcon';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { XCircleIcon } from './icons/XCircleIcon';
@@ -8,9 +9,7 @@ import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { HistoryIcon } from './icons/HistoryIcon';
 import PolicyUpload from './PolicyUpload';
 import { UploadIcon } from './icons/UploadIcon';
-import { getReviewHistory } from '../services/policyService';
 import Spinner from './Spinner';
-import ChangeCard from './ChangeCard';
 
 
 // Declare globals from CDN scripts
@@ -23,44 +22,12 @@ interface PolicyManagerProps {
   onStartReview: (policyId: string) => void;
 }
 
-const ArchivedReviewItem: React.FC<{ review: PolicyReview }> = ({ review }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
-    
-    const acceptedCount = review.changes.filter(c => c.status === 'accepted').length;
-    const modifiedCount = review.changes.filter(c => c.status === 'modified').length;
-    const rejectedCount = review.changes.filter(c => c.status === 'rejected').length;
-
-    return (
-        <div className="bg-gray-50 p-3 rounded-md border">
-            <div className="flex justify-between items-center cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
-                <div>
-                    <p className="font-semibold text-sm">{review.triggeredBy}</p>
-                    <p className="text-xs text-gray-500">Completed on: {new Date(review.completedAt!).toLocaleString()}</p>
-                </div>
-                <ChevronDownIcon className={`h-5 w-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-            </div>
-            {isExpanded && (
-                <div className="mt-3 pt-3 border-t space-y-3 animate-fade-in-down">
-                    <div className="flex space-x-4 text-xs">
-                        <span className="font-semibold text-green-600">{acceptedCount + modifiedCount} Changes Implemented</span>
-                        <span className="font-semibold text-red-600">{rejectedCount} Changes Rejected</span>
-                    </div>
-                    {review.changes.map(change => (
-                        <ChangeCard key={change.id} change={change} readOnly={true} />
-                    ))}
-                </div>
-            )}
-        </div>
-    )
-}
-
-
 const PolicyCard: React.FC<{ policy: Policy; onStartReview: (policyId: string) => void }> = ({ policy, onStartReview }) => {
     const [isDownloadMenuOpen, setDownloadMenuOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [isHistoryVisible, setHistoryVisible] = useState(false);
-    const [history, setHistory] = useState<PolicyReview[]>([]);
-    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+    
+    const isSimulated = policy.id.startsWith('simulated-');
 
 
     useEffect(() => {
@@ -76,16 +43,8 @@ const PolicyCard: React.FC<{ policy: Policy; onStartReview: (policyId: string) =
     }, []);
 
     const toggleHistory = () => {
-        const becomingVisible = !isHistoryVisible;
-        setHistoryVisible(becomingVisible);
-        if (becomingVisible) {
-            setIsLoadingHistory(true);
-            // Simulate fetch
-            setTimeout(() => {
-                setHistory(getReviewHistory(policy.id));
-                setIsLoadingHistory(false);
-            }, 300);
-        }
+        // History is now just viewing past versions, which is not implemented in this view
+        setHistoryVisible(!isHistoryVisible);
     };
     
     const handleDownload = (format: 'txt' | 'pdf' | 'docx') => {
@@ -150,11 +109,13 @@ const PolicyCard: React.FC<{ policy: Policy; onStartReview: (policyId: string) =
                 <p className="text-sm text-gray-500 mt-1">
                     Version {policy.currentVersion}.0 | Last updated: {new Date(policy.versions.find(v=>v.version === policy.currentVersion)?.createdAt ?? Date.now()).toLocaleDateString()}
                 </p>
+                {isSimulated && <p className="text-xs text-orange-600 font-semibold mt-1">Note: This is a temporary preview and is not saved to the server.</p>}
             </div>
             <div className="mt-4 flex items-center justify-end space-x-2">
                  <button
                     onClick={toggleHistory}
-                    className="flex items-center justify-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                    disabled // Re-enable when version history view is built
+                    className="flex items-center justify-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <HistoryIcon className="h-5 w-5 mr-2 text-gray-500" />
                     History
@@ -186,7 +147,6 @@ const PolicyCard: React.FC<{ policy: Policy; onStartReview: (policyId: string) =
                                 <a href="#" onClick={(e) => { e.preventDefault(); handleDownload('txt'); }} className="text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100" role="menuitem">As Text (.txt)</a>
                                 <a href="#" onClick={(e) => { e.preventDefault(); handleDownload('pdf'); }} className="text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100" role="menuitem">As PDF (.pdf)</a>
                                 <a href="#" onClick={(e) => { e.preventDefault(); handleDownload('docx'); }} className="text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100" role="menuitem">As Word (.docx)</a>
-                                <a href="#" onClick={(e) => e.preventDefault()} className="text-gray-400 block px-4 py-2 text-sm cursor-not-allowed" role="menuitem" title="This format is not yet supported">As ODT (.odt)</a>
                             </div>
                         </div>
                     )}
@@ -203,16 +163,8 @@ const PolicyCard: React.FC<{ policy: Policy; onStartReview: (policyId: string) =
             </div>
              {isHistoryVisible && (
                 <div className="mt-4 pt-4 border-t border-gray-200 animate-fade-in-down">
-                    <h4 className="text-md font-semibold text-gray-700 mb-3">Review History</h4>
-                    {isLoadingHistory ? <div className="flex justify-center"><Spinner /></div> : (
-                        history.length > 0 ? (
-                            <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-                                {history.map(review => <ArchivedReviewItem key={review.id} review={review} />)}
-                            </div>
-                        ) : (
-                            <p className="text-sm text-gray-500 text-center py-4">No completed reviews found for this policy.</p>
-                        )
-                    )}
+                    <h4 className="text-md font-semibold text-gray-700 mb-3">Version History</h4>
+                    <p className="text-sm text-gray-500 text-center py-4">Version history view is not yet implemented.</p>
                 </div>
             )}
         </div>

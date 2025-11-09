@@ -17,24 +17,31 @@ const Dashboard: React.FC = () => {
   const { user, impersonatedTenant } = useAuth();
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [reviewingPolicyId, setReviewingPolicyId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<'policies' | 'profile' | 'onboarding'>('policies');
 
 
   const activeTenantId = impersonatedTenant?.tenantId || user?.tenantId;
 
-  const fetchPolicies = () => {
+  const fetchPolicies = async () => {
     if (activeTenantId) {
-      const userPolicies = getPolicies(activeTenantId);
-      setPolicies(userPolicies);
+      try {
+        setIsLoading(true);
+        setError(null);
+        const userPolicies = await getPolicies(activeTenantId);
+        setPolicies(userPolicies);
+      } catch (err: any) {
+          setError(err.message || "Failed to load policies.");
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
   useEffect(() => {
     // Refetch policies whenever the active tenant changes (e.g., admin impersonation)
-    setIsLoading(true);
     fetchPolicies();
-    setIsLoading(false);
   }, [activeTenantId]);
 
   const handleStartReview = (policyId: string) => {
@@ -54,12 +61,16 @@ const Dashboard: React.FC = () => {
   if (isLoading || !user) {
     return <div className="text-center p-8"><Spinner /></div>;
   }
+  
+  if (error) {
+    return <div className="text-center p-8 bg-red-100 text-red-700 rounded-lg shadow-md border">{error}</div>;
+  }
 
   // Admin View: Not impersonating
   if (user.role === 'admin' && !impersonatedTenant) {
     return <AdminPanel />;
   }
-
+  
   const renderCurrentView = () => {
     if (reviewingPolicyId && activeTenantId) {
         return (
@@ -71,6 +82,15 @@ const Dashboard: React.FC = () => {
             />
         );
     }
+    
+    // Add a special case for newly uploaded (simulated) policies
+    const simulatedPolicy = policies.find(p => p.id === reviewingPolicyId && p.id.startsWith('simulated-'));
+    if (simulatedPolicy && activeTenantId) {
+        // This view is now more complex. The simplified ReviewChanges handles this.
+        // For now, the user must go back if they land here with a simulated policy.
+        return <div>Reviewing simulated policies directly is not supported after a page refresh.</div>
+    }
+
 
     switch (activeView) {
         case 'policies':

@@ -1,4 +1,3 @@
-
 export type BusinessLine = 'MSBs' | 'Securities Dealers' | 'Financial Entities' | 'Casinos';
 
 export interface User {
@@ -112,6 +111,8 @@ export interface Policy {
     text: string;
     createdAt: string;
   }[];
+  // This will hold the pending review data for simulated policies
+  review?: PolicyReview;
 }
 
 export interface Regulation {
@@ -122,22 +123,6 @@ export interface Regulation {
   isVerified: boolean;
   createdAt: string;
   businessLine: BusinessLine;
-}
-
-export interface Finding {
-  regulation: string;
-  policySection: string;
-  originalText: string;
-  analysis: string;
-  suggestion: string;
-  isCompliant: boolean;
-  severity: 'Low' | 'Medium' | 'High' | 'Critical';
-}
-
-export interface AnalysisResult {
-  overallScore: number;
-  summary: string;
-  findings: Finding[];
 }
 
 export interface AIModelConfig {
@@ -168,4 +153,6 @@ export interface CompanyProfile {
   businessAddress: string;
   businessLines: BusinessLine[];
   employees: Employee[];
+  // Assuming onboarding data is part of the client profile from the API
+  onboardingData?: OnboardingData;
 }

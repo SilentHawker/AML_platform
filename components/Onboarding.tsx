@@ -1,10 +1,11 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { OnboardingData } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import { saveOnboardingData } from '../services/onboardingService';
 import { getOnboardingData } from '../services/onboardingService';
 import { completeUserOnboarding } from '../services/authService';
+import Spinner from './Spinner';
 
 // --- Helper Components for Form Fields ---
 
@@ -104,11 +105,10 @@ const Onboarding: React.FC<OnboardingProps> = ({ onImpersonationComplete, onComp
   const { user, completeOnboarding, impersonatedTenant } = useAuth();
   const [step, setStep] = useState(1);
   const activeTenantId = impersonatedTenant?.tenantId || user?.tenantId;
-  const [isEditing] = useState(() => activeTenantId ? !!getOnboardingData(activeTenantId) : false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const getInitialData = (): OnboardingData => {
-    const existingData = activeTenantId ? getOnboardingData(activeTenantId) : null;
-    const defaultData: OnboardingData = {
+  const defaultData: OnboardingData = {
       company_legal_name: impersonatedTenant?.tenantName || user?.tenantName || '',
       operating_name: '',
       fintrac_reg_number: '',
@@ -151,10 +151,22 @@ const Onboarding: React.FC<OnboardingProps> = ({ onImpersonationComplete, onComp
       sanctions_tools: '',
       additional_notes: '',
     };
-     return existingData ? { ...defaultData, ...existingData } : defaultData;
-  };
   
-  const [formData, setFormData] = useState<OnboardingData>(getInitialData);
+  const [formData, setFormData] = useState<OnboardingData>(defaultData);
+
+  useEffect(() => {
+    const loadData = async () => {
+        if (activeTenantId) {
+            const existingData = await getOnboardingData(activeTenantId);
+            if (existingData) {
+                setFormData({ ...defaultData, ...existingData });
+                setIsEditing(true);
+            }
+        }
+        setIsLoading(false);
+    };
+    loadData();
+  }, [activeTenantId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -173,7 +185,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onImpersonationComplete, onComp
   const nextStep = () => setStep(prev => Math.min(prev + 1, totalSteps));
   const prevStep = () => setStep(prev => Math.max(prev - 1, 1));
   
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const tenantIdToSaveFor = impersonatedTenant?.tenantId || user?.tenantId; 
     
@@ -183,12 +195,12 @@ const Onboarding: React.FC<OnboardingProps> = ({ onImpersonationComplete, onComp
     }
 
     // Save the form data to its own storage
-    saveOnboardingData(tenantIdToSaveFor, formData);
+    await saveOnboardingData(tenantIdToSaveFor, formData);
     
     // Now handle the UI update and user status change
     if (impersonatedTenant) {
         // It's an admin finishing for a client
-        completeUserOnboarding(tenantIdToSaveFor); // Update the user in the mock DB
+        await completeUserOnboarding(tenantIdToSaveFor); // Update the user in the mock DB
         onImpersonationComplete?.(); // Tell the parent component to refresh the impersonated user state
     } else {
         // It's a client finishing for themselves. The context function handles everything.
@@ -346,6 +358,14 @@ const Onboarding: React.FC<OnboardingProps> = ({ onImpersonationComplete, onComp
       default: return null;
     }
   };
+
+  if (isLoading) {
+    return (
+        <div className="max-w-4xl mx-auto bg-white p-6 md:p-8 rounded-lg shadow-md border border-gray-200 flex justify-center items-center min-h-[400px]">
+            <Spinner />
+        </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto bg-white p-6 md:p-8 rounded-lg shadow-md border border-gray-200">

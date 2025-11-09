@@ -1,113 +1,79 @@
+import { GoogleGenAI, Type } from '@google/genai';
+import type { OnboardingData, SuggestedChange } from '../types';
 
-import { GoogleGenAI, Type } from "@google/genai";
-import type { AnalysisResult } from '../types';
-import { getModelConfigById, getDefaultModelConfig } from './modelConfigService';
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const responseSchema = {
-  type: Type.OBJECT,
-  properties: {
-    overallScore: {
-      type: Type.INTEGER,
-      description: "A numerical score from 0 to 100 representing the overall compliance level of the policy.",
-    },
-    summary: {
-      type: Type.STRING,
-      description: "A concise, high-level summary of the policy's strengths and weaknesses against the provided FINTRAC regulations.",
-    },
-    findings: {
-      type: Type.ARRAY,
-      description: "A detailed list of specific compliance findings.",
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          regulation: {
-            type: Type.STRING,
-            description: "The specific FINTRAC regulation or guideline section being assessed (e.g., 'FINTRAC Guideline 6G: Record Keeping'). This must match one of the regulations provided in the prompt.",
-          },
-          policySection: {
-            type: Type.STRING,
-            description: "The corresponding section, clause, or page number in the user's policy document. If not found, state 'Not Addressed'.",
-          },
-          originalText: {
-            type: Type.STRING,
-            description: "The exact, verbatim text from the policy document that this finding refers to. This should be the complete sentence or paragraph that is being analyzed.",
-          },
-          analysis: {
-            type: Type.STRING,
-            description: "A detailed analysis of how the policy section aligns or fails to align with the regulation, based *only* on the provided regulation interpretation.",
-          },
-          suggestion: {
-            type: Type.STRING,
-            description: "A concrete, actionable suggestion for how to improve the policy to meet the compliance requirement.",
-          },
-          isCompliant: {
-            type: Type.BOOLEAN,
-            description: "A boolean value indicating whether the policy section is compliant with this specific regulation.",
-          },
-          severity: {
-            type: Type.STRING,
-            description: "The severity of the compliance gap, rated as 'Low', 'Medium', 'High', or 'Critical'."
-          }
-        },
-        required: ['regulation', 'policySection', 'originalText', 'analysis', 'suggestion', 'isCompliant', 'severity'],
-      },
-    },
-  },
-  required: ['overallScore', 'summary', 'findings'],
+    type: Type.OBJECT,
+    properties: {
+        suggestions: {
+            type: Type.ARRAY,
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    originalText: { type: Type.STRING, description: 'The exact, verbatim text snippet from the original document that needs to be changed.' },
+                    suggestedText: { type: Type.STRING, description: 'The new, compliant text that should replace the original snippet.' },
+                    reason: { type: Type.STRING, description: 'A clear, concise explanation of why the change is necessary, referencing specific Canadian FINTRAC guidelines or AML principles.' },
+                    severity: { type: Type.STRING, description: 'The severity of the compliance gap. Must be one of: "Low", "Medium", "High", "Critical".' }
+                },
+                required: ['originalText', 'suggestedText', 'reason', 'severity'],
+            }
+        }
+    }
 };
 
-/**
- * A specialized handler that communicates with the Gemini API to analyze a policy.
- * It takes a fully-formed prompt and system instruction, selects the appropriate model
- * based on configuration, and expects a JSON response that conforms to the AnalysisResult schema.
- *
- * @param prompt The main prompt content, including regulations and policy text.
- * @param systemInstruction The master prompt that guides the AI's behavior.
- * @param modelId Optional ID of the specific AI model to use. If not provided, the default model is used.
- * @returns A promise that resolves to the structured analysis result.
- */
-export const generateAnalysisFromPrompt = async (prompt: string, systemInstruction: string, modelId?: string): Promise<AnalysisResult> => {
+const buildSystemInstruction = (onboardingData: OnboardingData | null) => {
+    let context = `You are an expert AML compliance consultant specializing in Canadian FINTRAC regulations. Your task is to analyze a client's AML policy document and provide specific, actionable suggestions for improvement.`;
+
+    if (onboardingData) {
+        context += `\n\n### Client Context ###\n`
+        context += `This client is a Money Service Business (MSB) with the following characteristics:\n`;
+        if (onboardingData.msb_activities.length > 0) {
+            context += `- Activities: ${onboardingData.msb_activities.join(', ')}\n`;
+        }
+        if (onboardingData.delivery_channels.length > 0) {
+            context += `- Delivery Channels: ${onboardingData.delivery_channels.join(', ')}\n`;
+        }
+        if (onboardingData.client_types.length > 0) {
+            context += `- Client Types: ${onboardingData.client_types.join(', ')}\n`;
+        }
+        if (onboardingData.uses_vc) {
+             context += `- Deals with virtual currency.\n`;
+        }
+        context += `Tailor your analysis to these specific operational details. Focus only on gaps or weaknesses in the provided policy text. Do not invent new sections or suggest content for topics not already present in the document.`;
+    }
+    
+    context += `\n\n### Task ###\n`
+    context += `Review the following AML policy. Identify all sections that are non-compliant, unclear, or could be strengthened according to FINTRAC's guidelines. For each identified issue, you MUST provide a JSON object with the original text, your suggested replacement, a reason for the change, and a severity level. If the policy is perfect, return an empty array of suggestions. Ensure 'originalText' is an exact substring from the provided document.`;
+
+    return context;
+};
+
+export const analyzePolicyAndSuggestChanges = async (policyText: string, onboardingData: OnboardingData | null): Promise<Omit<SuggestedChange, 'id' | 'status' | 'modifiedText'>[]> => {
     try {
-        const modelConfig = modelId ? getModelConfigById(modelId) : getDefaultModelConfig();
-
-        if (!modelConfig) {
-            throw new Error("No AI model configured. Please ask an administrator to configure a default model.");
-        }
-
-        if (!modelConfig.apiKey) {
-            console.error("API Key for model is missing:", modelConfig);
-            throw new Error(`API Key for model "${modelConfig.description}" is missing. Please contact an administrator.`);
-        }
-        
-        // Create a new AI instance for each request with the specific key
-        const ai = new GoogleGenAI({ apiKey: modelConfig.apiKey });
+        const systemInstruction = buildSystemInstruction(onboardingData);
 
         const response = await ai.models.generateContent({
-            model: modelConfig.modelName,
-            contents: prompt,
+            model: 'gemini-2.5-pro', // Using Pro for better reasoning and JSON generation
+            contents: [{ parts: [{ text: policyText }] }],
             config: {
-                systemInstruction: systemInstruction,
+                systemInstruction,
                 responseMimeType: "application/json",
                 responseSchema: responseSchema,
-                temperature: 0.1,
+                temperature: 0.2, // Lower temperature for more deterministic, factual output
             },
         });
 
-        const jsonText = response.text.trim();
-        const result = JSON.parse(jsonText);
-        
-        // Basic validation
-        if (!result.findings || !Array.isArray(result.findings)) {
-            throw new Error("Invalid response format from API: 'findings' array is missing.");
+        const jsonStr = response.text.trim();
+        const result = JSON.parse(jsonStr);
+
+        if (result && result.suggestions) {
+            return result.suggestions;
         }
 
-        return result as AnalysisResult;
-
+        return [];
     } catch (error) {
-        console.error("Error generating analysis from Gemini:", error);
-        if (error instanceof Error && (error.message.includes("model"))) {
-            throw error;
-        }
-        throw new Error("Failed to get a valid analysis from the AI. The service may be unavailable or the model configuration is incorrect.");
+        console.error("Error analyzing policy with Gemini:", error);
+        throw new Error("The AI analysis failed. This could be due to a temporary issue or a problem with the document format after parsing. Please try again.");
     }
 };
