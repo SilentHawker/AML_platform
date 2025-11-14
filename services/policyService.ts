@@ -7,6 +7,36 @@ import { getOnboardingData } from './onboardingService';
 // In a real app, this would be handled by the backend.
 const SIMULATED_POLICY_STORE: { [id: string]: Policy } = {};
 
+// --- NEW INTERFACE and FUNCTION as requested ---
+export interface ApiPolicy {
+  id: string;
+  client_id: string;
+  title: string;
+  content?: string;
+  markdown?: string;
+  master_prompt_id?: string;
+  language: string;
+  status: 'draft' | 'published' | 'archived';
+  created_at: string;
+  updated_at: string;
+}
+
+export const createPolicy = async (data: {
+  client_id: string;
+  title: string;
+  master_prompt_id?: string;
+  content?: string;
+  markdown?: string;
+  language?: string;
+  status?: string;
+}): Promise<ApiPolicy> => {
+  return fetchApi<ApiPolicy>('/api/v1/policies', {
+    method: 'POST',
+    body: data
+  });
+};
+// --- END NEW ---
+
 export const getPolicies = (tenantId: string): Promise<Policy[]> => {
     return fetchApi<Policy[]>(`/policies/client/${tenantId}`);
 };

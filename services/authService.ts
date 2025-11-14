@@ -6,7 +6,7 @@ import { fetchApi } from './api';
 
 export const login = async (email: string, password: string): Promise<User> => {
   // Assuming the login endpoint validates and returns the user object
-  const user = await fetchApi<User>('/auth/login', {
+  const user = await fetchApi<User>('/api/v1/admin/login', {
     method: 'POST',
     body: { email, password },
   });
