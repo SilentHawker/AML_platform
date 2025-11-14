@@ -1,6 +1,5 @@
-
 export const API_BASE = "https://unexploited-abdominal-tangela.ngrok-free.dev";
-const API_KEY = process.env.REACT_APP_API_KEY || "dev-key";
+const API_KEY = process.env.REACT_APP_API_KEY || "dev-key-please-change";
 
 interface FetchApiOptions extends RequestInit {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
