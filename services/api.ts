@@ -1,5 +1,5 @@
 
-export const API_BASE = "http://127.0.0.1:8502";
+export const API_BASE = "https://unexploited-abdominal-tangela.ngrok-free.dev";
 const API_KEY = process.env.REACT_APP_API_KEY || "dev-key";
 
 interface FetchApiOptions extends RequestInit {

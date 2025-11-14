@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import type { Policy } from '../types';
 import { FileTextIcon } from './icons/FileTextIcon';
@@ -10,6 +9,8 @@ import { HistoryIcon } from './icons/HistoryIcon';
 import PolicyUpload from './PolicyUpload';
 import { UploadIcon } from './icons/UploadIcon';
 import Spinner from './Spinner';
+import PolicyGenerator from './PolicyGenerator';
+import { SparklesIcon } from './icons/SparklesIcon';
 
 
 // Declare globals from CDN scripts
@@ -172,13 +173,20 @@ const PolicyCard: React.FC<{ policy: Policy; onStartReview: (policyId: string) =
 };
 
 const PolicyManager: React.FC<PolicyManagerProps> = ({ policies, onStartReview }) => {
-  const [showUploadForm, setShowUploadForm] = useState(false);
+  const [activeForm, setActiveForm] = useState<'none' | 'upload' | 'generate'>('none');
 
   const handleUploadComplete = (newPolicyId: string) => {
-    setShowUploadForm(false);
+    setActiveForm('none');
+    onStartReview(newPolicyId);
+  };
+
+  const handleGenerationComplete = (newPolicyId: string) => {
+    setActiveForm('none');
     onStartReview(newPolicyId);
   };
   
+  const isFormOpen = activeForm !== 'none';
+
   return (
     <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
       <div className="flex items-center justify-between mb-4 border-b pb-3">
@@ -186,32 +194,50 @@ const PolicyManager: React.FC<PolicyManagerProps> = ({ policies, onStartReview }
             <FileTextIcon className="h-6 w-6 text-blue-600" />
             <h2 className="text-xl font-semibold text-gray-800">My Compliance Policies</h2>
         </div>
-        {!showUploadForm && (
-             <button
-                onClick={() => setShowUploadForm(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-                <UploadIcon className="h-5 w-5 mr-2" />
-                Upload New Policy
-            </button>
+        {!isFormOpen && (
+            <div className="flex items-center space-x-3">
+                 <button
+                    onClick={() => setActiveForm('generate')}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                >
+                    <SparklesIcon className="h-5 w-5 mr-2" />
+                    Generate Policy (AI)
+                </button>
+                <button
+                    onClick={() => setActiveForm('upload')}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                    <UploadIcon className="h-5 w-5 mr-2" />
+                    Upload New Policy
+                </button>
+            </div>
         )}
       </div>
 
-      {showUploadForm && (
+      {activeForm === 'upload' && (
         <PolicyUpload 
             onUploadComplete={handleUploadComplete}
-            onCancel={() => setShowUploadForm(false)}
+            onCancel={() => setActiveForm('none')}
         />
       )}
 
-      {policies.length === 0 && !showUploadForm ? (
-        <p className="text-center text-gray-500 py-8">You have not uploaded any policies yet.</p>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-          {policies.map(policy => (
-            <PolicyCard key={policy.id} policy={policy} onStartReview={onStartReview} />
-          ))}
-        </div>
+      {activeForm === 'generate' && (
+        <PolicyGenerator
+            onGenerationComplete={handleGenerationComplete}
+            onCancel={() => setActiveForm('none')}
+        />
+      )}
+
+      {!isFormOpen && (
+        policies.length === 0 ? (
+          <p className="text-center text-gray-500 py-8">You have not uploaded any policies yet.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            {policies.map(policy => (
+              <PolicyCard key={policy.id} policy={policy} onStartReview={onStartReview} />
+            ))}
+          </div>
+        )
       )}
     </div>
   );

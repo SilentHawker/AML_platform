@@ -31,6 +31,13 @@ export const getTenants = async (): Promise<{ id: string, name: string }[]> => {
     }
 }
 
+export const generatePolicy = async (companyName: string, customPrompt: string | null): Promise<{ policy_text: string }> => {
+    return fetchApi<{ policy_text: string }>('/generate', {
+        method: "POST",
+        body: { company_name: companyName, custom_prompt: customPrompt, language: "en" },
+    });
+};
+
 export const createPolicyWithAnalysis = async (policyName: string, policyText: string, tenantId: string): Promise<Policy> => {
   
   // 1. Get client's onboarding data for context
