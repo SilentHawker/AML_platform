@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { generatePolicy, createPolicyWithAnalysis } from '../services/policyService';
@@ -65,15 +66,15 @@ const PolicyGenerator: React.FC<PolicyGeneratorProps> = ({ onGenerationComplete,
     setIsLoading(true);
     try {
       // Step 1: Generate the policy text from the backend using the selected prompt text
-      const { policy_text } = await generatePolicy(activeTenantName, selectedPrompt.prompt_text);
+      const { markdown } = await generatePolicy(activeTenantName, selectedPrompt.prompt_text);
 
-      if (!policy_text) {
+      if (!markdown) {
           throw new Error("The generation service returned an empty policy.");
       }
 
       // Step 2: Create a policy with AI analysis, similar to the upload flow
       const policyName = `Generated Policy for ${activeTenantName}`;
-      const newPolicy = await createPolicyWithAnalysis(policyName, policy_text, activeTenantId);
+      const newPolicy = await createPolicyWithAnalysis(policyName, markdown, activeTenantId);
       
       onGenerationComplete(newPolicy.id);
 

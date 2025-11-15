@@ -1,9 +1,11 @@
+
 export const API_BASE = "https://unexploited-abdominal-tangela.ngrok-free.dev";
 const API_KEY = process.env.REACT_APP_API_KEY || "dev-key-please-change";
 
 interface FetchApiOptions extends RequestInit {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   body?: any;
+  auth?: boolean; // Add auth flag
 }
 
 /**
@@ -13,15 +15,20 @@ interface FetchApiOptions extends RequestInit {
  * @returns A promise that resolves to the JSON response.
  */
 export async function fetchApi<T>(endpoint: string, options: FetchApiOptions = {}): Promise<T> {
-  const { body, ...restOptions } = options;
+  const { body, auth = true, ...restOptions } = options;
+
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+
+  if (auth) {
+    headers['x-api-key'] = API_KEY;
+  }
 
   const config: RequestInit = {
     ...restOptions,
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': API_KEY,
-      ...options.headers,
-    },
+    headers,
   };
 
   if (body) {
@@ -31,13 +38,23 @@ export async function fetchApi<T>(endpoint: string, options: FetchApiOptions = {
   const response = await fetch(`${API_BASE}${endpoint}`, config);
 
   if (!response.ok) {
-    let errorText = 'An unknown API error occurred.';
+    let errorMessage = `API Error: ${response.status} ${response.statusText}`;
     try {
-        errorText = await response.text();
-    } catch (e) {
-        // Ignore if can't read body
+      const errorData = await response.json();
+      // Prefer a structured error message if the API provides one.
+      errorMessage = errorData.detail || errorData.message || JSON.stringify(errorData);
+    } catch (jsonError) {
+      // If the response is not JSON, fall back to plain text.
+      try {
+        const errorText = await response.text();
+        if (errorText) {
+          errorMessage = errorText;
+        }
+      } catch (textError) {
+        // If we can't even read text, the original status message is the best we have.
+      }
     }
-    throw new Error(errorText || `API error: ${response.status} ${response.statusText}`);
+    throw new Error(errorMessage);
   }
 
   // Handle responses with no content (e.g., 204 No Content)

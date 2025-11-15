@@ -1,6 +1,7 @@
+
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import type { User } from '../types';
-import { login as apiLogin, register as apiRegister, logout as apiLogout, requestPasswordReset as apiRequestPasswordReset, adminCreateClient as apiAdminCreateClient, completeUserOnboarding as apiCompleteUserOnboarding } from '../services/authService';
+import { login as apiLogin, logout as apiLogout, requestPasswordReset as apiRequestPasswordReset, adminCreateClient as apiAdminCreateClient, completeUserOnboarding as apiCompleteUserOnboarding } from '../services/authService';
 
 interface ImpersonationInfo {
   tenantId: string;
@@ -11,14 +12,13 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   login: (email: string, password:string) => Promise<User>;
-  register: (email: string, password: string) => Promise<User>;
   logout: () => void;
   requestPasswordReset: (email: string) => Promise<void>;
   isLoading: boolean;
   impersonatedTenant: ImpersonationInfo | null;
   startImpersonation: (tenantId: string, tenantName: string) => void;
   stopImpersonation: () => void;
-  adminCreateClient: (companyName: string, email: string) => Promise<User>;
+  adminCreateClient: (companyName: string) => Promise<User>;
   completeOnboarding: () => void;
 }
 
@@ -44,21 +44,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.setItem('user', JSON.stringify(loggedInUser));
     return loggedInUser;
   };
-
-  const register = async (email: string, password: string) => {
-    const registeredUser = await apiRegister(email, password);
-    setUser(registeredUser);
-    localStorage.setItem('user', JSON.stringify(registeredUser));
-    return registeredUser;
-  };
   
   const requestPasswordReset = async (email: string) => {
     await apiRequestPasswordReset(email);
     // In a real app, this would trigger an email, but here we just resolve
   };
 
-  const adminCreateClient = async (companyName: string, email: string) => {
-    const newUser = await apiAdminCreateClient(companyName, email);
+  const adminCreateClient = async (companyName: string) => {
+    const newUser = await apiAdminCreateClient(companyName);
     // This function doesn't log in as the new user, but prepares for impersonation.
     return newUser;
   };
@@ -99,7 +92,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       user, 
       isAuthenticated: !!user, 
       login, 
-      register, 
       logout, 
       requestPasswordReset, 
       isLoading,

@@ -1,12 +1,12 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 
 interface LoginProps {
-  onSwitchToRegister: () => void;
   onSwitchToForgotPassword: () => void;
 }
 
-const Login: React.FC<LoginProps> = ({ onSwitchToRegister, onSwitchToForgotPassword }) => {
+const Login: React.FC<LoginProps> = ({ onSwitchToForgotPassword }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -76,10 +76,7 @@ const Login: React.FC<LoginProps> = ({ onSwitchToRegister, onSwitchToForgotPassw
         </div>
       </form>
       <p className="mt-6 text-center text-sm text-gray-600">
-        Don't have an account?{' '}
-        <button onClick={onSwitchToRegister} className="font-medium text-blue-600 hover:text-blue-500">
-          Register
-        </button>
+        Contact support for account creation.
       </p>
     </div>
   );

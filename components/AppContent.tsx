@@ -1,8 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import Header from './Header';
 import Login from './Login';
-import Register from './Register';
 import Dashboard from './Dashboard';
 import Spinner from './Spinner';
 import ForgotPassword from './ForgotPassword';
@@ -10,7 +10,7 @@ import Onboarding from './Onboarding';
 import { getUserByTenantId } from '../services/authService';
 import type { User } from '../types';
 
-type View = 'login' | 'register' | 'forgotPassword';
+type View = 'login' | 'forgotPassword';
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading, user, logout, impersonatedTenant, stopImpersonation } = useAuth();
@@ -18,13 +18,15 @@ const AppContent: React.FC = () => {
   const [impersonatedUser, setImpersonatedUser] = useState<User | null>(null);
 
   useEffect(() => {
-    if (impersonatedTenant) {
-      // In a real app, this would likely be an API call.
-      const targetUser = getUserByTenantId(impersonatedTenant.tenantId);
-      setImpersonatedUser(targetUser || null);
-    } else {
-      setImpersonatedUser(null);
-    }
+    const fetchImpersonatedUser = async () => {
+        if (impersonatedTenant) {
+            const targetUser = await getUserByTenantId(impersonatedTenant.tenantId);
+            setImpersonatedUser(targetUser || null);
+        } else {
+            setImpersonatedUser(null);
+        }
+    };
+    fetchImpersonatedUser();
   }, [impersonatedTenant]);
 
   if (isLoading) {
@@ -37,20 +39,18 @@ const AppContent: React.FC = () => {
 
   const renderAuthView = () => {
     switch (currentView) {
-      case 'register':
-        return <Register onSwitchView={() => setCurrentView('login')} />;
       case 'forgotPassword':
         return <ForgotPassword onSwitchView={() => setCurrentView('login')} />;
       case 'login':
       default:
-        return <Login onSwitchToRegister={() => setCurrentView('register')} onSwitchToForgotPassword={() => setCurrentView('forgotPassword')} />;
+        return <Login onSwitchToForgotPassword={() => setCurrentView('forgotPassword')} />;
     }
   }
 
-  const handleImpersonationOnboardingComplete = () => {
+  const handleImpersonationOnboardingComplete = async () => {
     // Re-fetch the impersonated user's data to confirm their status has changed
     if (impersonatedTenant) {
-      const targetUser = getUserByTenantId(impersonatedTenant.tenantId);
+      const targetUser = await getUserByTenantId(impersonatedTenant.tenantId);
       setImpersonatedUser(targetUser || null);
     }
   };

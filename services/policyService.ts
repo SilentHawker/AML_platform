@@ -1,3 +1,4 @@
+
 import type { Policy, SuggestedChange } from '../types';
 import { fetchApi } from './api';
 import { analyzePolicyAndSuggestChanges } from './geminiService';
@@ -37,15 +38,49 @@ export const createPolicy = async (data: {
 };
 // --- END NEW ---
 
-export const getPolicies = (tenantId: string): Promise<Policy[]> => {
-    return fetchApi<Policy[]>(`/policies/client/${tenantId}`);
+export const getPolicies = async (tenantId: string): Promise<Policy[]> => {
+    const apiPolicies = await fetchApi<ApiPolicy[]>('/api/v1/policies');
+    const clientPolicies = apiPolicies.filter(p => p.client_id === tenantId);
+
+    // Map from the backend's ApiPolicy shape to the frontend's Policy shape
+    return clientPolicies.map(p => ({
+        id: p.id,
+        name: p.title,
+        tenantId: p.client_id,
+        // The ApiPolicy type doesn't have versioning, so we default to version 1.
+        // This is a data model mismatch that would need to be resolved in a real app.
+        currentVersion: 1, 
+        status: p.status === 'published' ? 'Active' : 'Review Required',
+        versions: [{
+            version: 1,
+            text: p.markdown || p.content || '',
+            createdAt: p.updated_at
+        }],
+        review: undefined // This info isn't available from the GET /policies endpoint.
+    }));
 };
 
 export const getPolicyById = async (id: string): Promise<Policy | undefined> => {
     if (id.startsWith('simulated-')) {
         return Promise.resolve(SIMULATED_POLICY_STORE[id]);
     }
-    return fetchApi<Policy>(`/policies/${id}`);
+    const p = await fetchApi<ApiPolicy>(`/api/v1/policies/${id}`);
+    if (!p) return undefined;
+
+    // Map ApiPolicy to the frontend's Policy type
+    return {
+        id: p.id,
+        name: p.title,
+        tenantId: p.client_id,
+        currentVersion: 1,
+        status: p.status === 'published' ? 'Active' : 'Review Required',
+        versions: [{
+            version: 1,
+            text: p.markdown || p.content || '',
+            createdAt: p.updated_at
+        }],
+        review: undefined
+    };
 }
 
 export const getTenants = async (): Promise<{ id: string, name: string }[]> => {
@@ -61,8 +96,8 @@ export const getTenants = async (): Promise<{ id: string, name: string }[]> => {
     }
 }
 
-export const generatePolicy = async (companyName: string, customPrompt: string | null): Promise<{ policy_text: string }> => {
-    return fetchApi<{ policy_text: string }>('/generate', {
+export const generatePolicy = async (companyName: string, customPrompt: string | null): Promise<{ markdown: string }> => {
+    return fetchApi<{ markdown: string }>('/api/v1/generate', {
         method: "POST",
         body: { company_name: companyName, custom_prompt: customPrompt, language: "en" },
     });
@@ -77,7 +112,9 @@ export const createPolicyWithAnalysis = async (policyName: string, policyText: s
   const suggestions = await analyzePolicyAndSuggestChanges(policyText, onboardingData);
 
   // 3. Create the new simulated policy with a review object
-  console.warn("API does not support POST /policies. Simulating policy creation with review data.");
+  // This remains a simulation because the POST /api/v1/policies endpoint doesn't support
+  // creating a policy directly in a 'Review Required' state with analysis data attached.
+  console.warn("API does not support creating a policy with initial analysis. Simulating policy creation with review data.");
   
   const newReview = {
       id: `review-${Date.now()}`,

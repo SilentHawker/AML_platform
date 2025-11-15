@@ -1,48 +1,70 @@
 
 import type { User } from '../types';
 import { fetchApi } from './api';
+import { getProfile } from './profileService';
+
+interface LoginResponse {
+  id: string;
+  email: string;
+  full_name: string;
+  role: 'client' | 'manager' | 'admin';
+  token: string;
+}
 
 // Mock user database is now replaced by the backend API.
-
 export const login = async (email: string, password: string): Promise<User> => {
-  // Assuming the login endpoint validates and returns the user object
-  const user = await fetchApi<User>('/api/v1/admin/login', {
+  const loginResponse = await fetchApi<LoginResponse>('/api/v1/admin/login', {
     method: 'POST',
     body: { email, password },
+    auth: false, // This is an unauthenticated endpoint
   });
-  // The API may not return all fields, so we supplement if necessary.
+
+  // For admins, we create a user object without tenant-specific details.
+  if (loginResponse.role === 'admin') {
+    return {
+      id: loginResponse.id,
+      email: loginResponse.email,
+      role: loginResponse.role,
+      tenantId: '', // Admins are not tied to a single tenant
+      tenantName: 'Admin',
+      hasCompletedOnboarding: true, // Admins do not go through client onboarding
+    };
+  }
+  
+  // For clients, we assume the login response ID can be used to fetch their company profile.
+  // The API spec is ambiguous on the link between a user and a client/tenant, so this is a reasonable assumption.
+  const tenantId = loginResponse.id;
+  const profile = await getProfile(tenantId);
+  
+  if (!profile) {
+      throw new Error("Logged in successfully, but could not find an associated company profile.");
+  }
+
   return {
-      hasCompletedOnboarding: true, // Assuming login implies onboarding is done, or API provides this
-      ...user
+    id: loginResponse.id,
+    email: loginResponse.email,
+    role: loginResponse.role,
+    tenantId: profile.tenantId,
+    tenantName: profile.legalName,
+    hasCompletedOnboarding: !!profile.onboardingData,
   };
 };
 
-export const register = async (email: string, password: string): Promise<User> => {
-  // Assume new self-registrations create a client with a default company name
-  const tenantName = 'New Client Inc.';
-  const newUser = await fetchApi<User>('/clients', {
-      method: 'POST',
-      body: { email, password, company_name: tenantName }
-  });
-  return { ...newUser, hasCompletedOnboarding: false, tenantName };
-};
 
 export const getUserByTenantId = async (tenantId: string): Promise<User | undefined> => {
-    // The GET /clients/{client_id} endpoint seems to be for company profiles, not user objects.
-    // For this app, the 'User' is tied to a client/tenant. We can get the client details.
-    // This is a temporary measure as the API surface is not fully clear on users vs clients.
+    // Refactored to use the more specific getProfile service
     try {
-        const clients = await fetchApi<any[]>('/clients');
-        const client = clients.find(c => c.client_id === tenantId);
-        if (!client) return undefined;
-        // Construct a User-like object from client data for compatibility
+        const profile = await getProfile(tenantId);
+        if (!profile) return undefined;
+        // Construct a User-like object from client data for compatibility.
+        // Email is not available on the profile, this is a limitation.
         return {
-            id: client.client_id,
-            email: client.email, // Assuming email exists on client object
+            id: profile.tenantId,
+            email: '', 
             role: 'client',
-            tenantId: client.client_id,
-            tenantName: client.company_name,
-            hasCompletedOnboarding: client.has_completed_onboarding || false,
+            tenantId: profile.tenantId,
+            tenantName: profile.legalName,
+            hasCompletedOnboarding: !!profile.onboardingData,
         };
     } catch (e) {
         console.error("Failed to get user by tenant ID", e);
@@ -59,18 +81,34 @@ export const completeUserOnboarding = async (tenantId: string): Promise<User | u
     return getUserByTenantId(tenantId);
 };
 
-export const adminCreateClient = async (companyName: string, email: string): Promise<User> => {
-    const newUser = await fetchApi<any>('/clients', {
+interface CreateClientResponse {
+    ok: boolean;
+    result: {
+        client_id: string;
+        company_name: string;
+    }
+}
+
+export const adminCreateClient = async (companyName: string): Promise<User> => {
+    const response = await fetchApi<CreateClientResponse>('/clients', {
         method: 'POST',
-        body: { email, company_name: companyName, password: `temp-password-${Date.now()}` } // Assume backend handles temp password
+        // Body aligns with the provided API spec, which does not include email or password.
+        body: { company_name: companyName } 
     });
-     // Adapt the response to the User type
+
+    if (!response.ok || !response.result) {
+        throw new Error("Failed to create client on the server.");
+    }
+    
+    const newClient = response.result;
+
+    // Adapt the response to the User type. Email is not returned by the API.
     return {
-        id: newUser.client_id,
-        email: newUser.email,
+        id: newClient.client_id,
+        email: '', // API does not provide an email on client creation.
         role: 'client',
-        tenantId: newUser.client_id,
-        tenantName: newUser.company_name,
+        tenantId: newClient.client_id,
+        tenantName: newClient.company_name,
         hasCompletedOnboarding: false,
     };
 };

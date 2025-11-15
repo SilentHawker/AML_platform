@@ -12,7 +12,6 @@ import Spinner from './Spinner';
 const ClientManager: React.FC = () => {
     const { adminCreateClient, startImpersonation } = useAuth();
     const [companyName, setCompanyName] = useState('');
-    const [email, setEmail] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -23,7 +22,7 @@ const ClientManager: React.FC = () => {
         setError(null);
         setSuccessMessage(null);
         try {
-            const newUser = await adminCreateClient(companyName, email);
+            const newUser = await adminCreateClient(companyName);
             setSuccessMessage(`Client ${newUser.tenantName} created! Starting onboarding...`);
             setTimeout(() => {
                 startImpersonation(newUser.tenantId, newUser.tenantName);
@@ -47,10 +46,6 @@ const ClientManager: React.FC = () => {
                      <div>
                         <label htmlFor="company-name" className="block text-sm font-medium text-gray-700">Company Name</label>
                         <input type="text" id="company-name" placeholder="e.g., ACME Corporation" value={companyName} onChange={e => setCompanyName(e.target.value)} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white text-gray-900" />
-                    </div>
-                     <div>
-                        <label htmlFor="client-email" className="block text-sm font-medium text-gray-700">Client Contact Email</label>
-                        <input type="email" id="client-email" placeholder="e.g., contact@acme.com" value={email} onChange={e => setEmail(e.target.value)} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white text-gray-900" />
                     </div>
                      <div className="flex justify-end">
                         <button type="submit" disabled={isSubmitting} className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 disabled:bg-gray-400">
