@@ -1,13 +1,16 @@
-
 import type { CompanyProfile } from '../types';
 import { fetchApi } from './api';
 
 // MOCK_PROFILES are now replaced by the backend API.
 
 export const getProfile = async (tenantId: string): Promise<CompanyProfile | undefined> => {
+    if (!tenantId) {
+        console.warn("getProfile was called without a valid tenantId. Aborting fetch.");
+        return undefined;
+    }
     try {
         // The API returns a different shape, so we adapt it to our CompanyProfile type
-        const clientData = await fetchApi<any>(`/clients/${tenantId}`);
+        const clientData = await fetchApi<any>(`/api/v1/clients/${tenantId}`);
         if (!clientData) return undefined;
 
         // Assuming the API returns a structure that can be mapped to CompanyProfile

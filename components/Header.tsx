@@ -19,7 +19,15 @@ const TenantSwitcher: React.FC = () => {
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        setTenants(getTenants());
+        const fetchTenants = async () => {
+            try {
+                const tenantData = await getTenants();
+                setTenants(tenantData);
+            } catch (error) {
+                console.error("Failed to fetch tenants for switcher:", error);
+            }
+        };
+        fetchTenants();
     }, []);
 
     useEffect(() => {

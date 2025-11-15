@@ -85,7 +85,10 @@ export const getPolicyById = async (id: string): Promise<Policy | undefined> => 
 
 export const getTenants = async (): Promise<{ id: string, name: string }[]> => {
     try {
-        const clients = await fetchApi<any[]>('/clients');
+        // Previous attempts at `/clients` and `/api/v1/clients` returned a 405 error.
+        // Based on the login endpoint (`/api/v1/admin/login`), it's possible this admin-only
+        // data is located under a similar path.
+        const clients = await fetchApi<any[]>('/api/v1/admin/clients');
         return clients.map(client => ({
             id: client.client_id,
             name: client.company_name,

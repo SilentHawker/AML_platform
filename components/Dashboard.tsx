@@ -25,17 +25,23 @@ const Dashboard: React.FC = () => {
   const activeTenantId = impersonatedTenant?.tenantId || user?.tenantId;
 
   const fetchPolicies = async () => {
-    if (activeTenantId) {
-      try {
-        setIsLoading(true);
-        setError(null);
+    setIsLoading(true);
+    setError(null);
+
+    // If there's no active tenant (e.g., admin view), there are no policies to fetch.
+    if (!activeTenantId) {
+        setPolicies([]);
+        setIsLoading(false);
+        return;
+    }
+
+    try {
         const userPolicies = await getPolicies(activeTenantId);
         setPolicies(userPolicies);
-      } catch (err: any) {
-          setError(err.message || "Failed to load policies.");
-      } finally {
+    } catch (err: any) {
+        setError(err.message || "Failed to load policies.");
+    } finally {
         setIsLoading(false);
-      }
     }
   };
 

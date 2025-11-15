@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import type { Regulation, BusinessLine } from '../types';
 import { getRegulations } from '../services/regulationService';
@@ -6,6 +5,8 @@ import { ScrollIcon } from './icons/ScrollIcon';
 import { UsersIcon } from './icons/UsersIcon';
 import { useAuth } from '../hooks/useAuth';
 import Spinner from './Spinner';
+import { CpuChipIcon } from './icons/CpuChipIcon';
+import MasterPromptManager from './MasterPromptManager';
 
 // --- Individual Manager Components ---
 
@@ -127,7 +128,7 @@ const RegulationManager: React.FC = () => {
 
 // --- Main AdminPanel Component ---
 
-type AdminTab = 'clients' | 'regulations';
+type AdminTab = 'clients' | 'regulations' | 'prompts';
 
 const AdminPanel: React.FC = () => {
     const [activeTab, setActiveTab] = useState<AdminTab>('clients');
@@ -135,6 +136,7 @@ const AdminPanel: React.FC = () => {
     const tabs: { id: AdminTab; name: string; icon: React.FC<{className?: string}>; component: React.FC }[] = [
         { id: 'clients', name: 'Client Management', icon: UsersIcon, component: ClientManager },
         { id: 'regulations', name: 'Regulations', icon: ScrollIcon, component: RegulationManager },
+        { id: 'prompts', name: 'Master Prompts', icon: CpuChipIcon, component: MasterPromptManager },
     ];
 
     const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || (() => null);

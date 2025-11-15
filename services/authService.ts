@@ -7,7 +7,7 @@ interface LoginResponse {
   id: string;
   email: string;
   full_name: string;
-  role: 'client' | 'manager' | 'admin';
+  role: 'client' | 'manager' | 'admin' | 'super_admin';
   token: string;
 }
 
@@ -19,35 +19,41 @@ export const login = async (email: string, password: string): Promise<User> => {
     auth: false, // This is an unauthenticated endpoint
   });
 
-  // For admins, we create a user object without tenant-specific details.
-  if (loginResponse.role === 'admin') {
+  if (loginResponse.role === 'admin' || loginResponse.role === 'super_admin') {
+    // For admins and super_admins, we create a user object without tenant-specific details
+    // and normalize the role to 'admin' for frontend consistency.
     return {
       id: loginResponse.id,
       email: loginResponse.email,
-      role: loginResponse.role,
+      role: 'admin',
       tenantId: '', // Admins are not tied to a single tenant
       tenantName: 'Admin',
       hasCompletedOnboarding: true, // Admins do not go through client onboarding
     };
-  }
-  
-  // For clients, we assume the login response ID can be used to fetch their company profile.
-  // The API spec is ambiguous on the link between a user and a client/tenant, so this is a reasonable assumption.
-  const tenantId = loginResponse.id;
-  const profile = await getProfile(tenantId);
-  
-  if (!profile) {
-      throw new Error("Logged in successfully, but could not find an associated company profile.");
-  }
+  } else if (loginResponse.role === 'client' || loginResponse.role === 'manager') {
+    // For clients or managers, fetch their associated company profile.
+    // The API spec is ambiguous on the link between a user and a client/tenant, 
+    // so we assume the user ID from the login response can be used as the client/tenant ID.
+    const tenantId = loginResponse.id;
+    const profile = await getProfile(tenantId);
+    
+    if (!profile) {
+        throw new Error("Logged in successfully, but could not find an associated company profile.");
+    }
 
-  return {
-    id: loginResponse.id,
-    email: loginResponse.email,
-    role: loginResponse.role,
-    tenantId: profile.tenantId,
-    tenantName: profile.legalName,
-    hasCompletedOnboarding: !!profile.onboardingData,
-  };
+    return {
+      id: loginResponse.id,
+      email: loginResponse.email,
+      role: loginResponse.role,
+      tenantId: profile.tenantId,
+      tenantName: profile.legalName,
+      hasCompletedOnboarding: !!profile.onboardingData,
+    };
+  } else {
+    // If the backend returns a role we don't recognize, we should fail safely.
+    // Using JSON.stringify in case the role is not a string, for better debugging.
+    throw new Error(`Unsupported user role received from the server: '${JSON.stringify(loginResponse.role)}'`);
+  }
 };
 
 

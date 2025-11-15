@@ -5,6 +5,7 @@ import { generatePolicy, createPolicyWithAnalysis } from '../services/policyServ
 import { listMasterPrompts, MasterPrompt } from '../services/promptService';
 import Spinner from './Spinner';
 import { SparklesIcon } from './icons/SparklesIcon';
+import { getProfile } from '../services/profileService';
 
 interface PolicyGeneratorProps {
   onGenerationComplete: (newPolicyId: string) => void;
@@ -23,7 +24,6 @@ const PolicyGenerator: React.FC<PolicyGeneratorProps> = ({ onGenerationComplete,
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const activeTenantName = impersonatedTenant?.tenantName || user?.tenantName;
   const activeTenantId = impersonatedTenant?.tenantId || user?.tenantId;
 
   // Fetch prompts on mount
@@ -47,7 +47,7 @@ const PolicyGenerator: React.FC<PolicyGeneratorProps> = ({ onGenerationComplete,
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeTenantId || !activeTenantName) {
+    if (!activeTenantId) {
         setError("Could not determine the active client. Please refresh and try again.");
         return;
     }
@@ -65,15 +65,27 @@ const PolicyGenerator: React.FC<PolicyGeneratorProps> = ({ onGenerationComplete,
     setError(null);
     setIsLoading(true);
     try {
+      let tenantName = impersonatedTenant?.tenantName || user?.tenantName;
+
+      // If tenant name is missing from context, try fetching it from the profile
+      if (!tenantName) {
+          const profile = await getProfile(activeTenantId);
+          if (profile?.legalName) {
+              tenantName = profile.legalName;
+          } else {
+              throw new Error("Client profile is missing a legal name. Please complete the company profile before generating documents.");
+          }
+      }
+
       // Step 1: Generate the policy text from the backend using the selected prompt text
-      const { markdown } = await generatePolicy(activeTenantName, selectedPrompt.prompt_text);
+      const { markdown } = await generatePolicy(tenantName, selectedPrompt.prompt_text);
 
       if (!markdown) {
           throw new Error("The generation service returned an empty policy.");
       }
 
       // Step 2: Create a policy with AI analysis, similar to the upload flow
-      const policyName = `Generated Policy for ${activeTenantName}`;
+      const policyName = `Generated Policy for ${tenantName}`;
       const newPolicy = await createPolicyWithAnalysis(policyName, markdown, activeTenantId);
       
       onGenerationComplete(newPolicy.id);

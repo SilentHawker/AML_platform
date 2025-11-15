@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 export const BuildingOfficeIcon: React.FC<{ className?: string }> = ({ className }) => (

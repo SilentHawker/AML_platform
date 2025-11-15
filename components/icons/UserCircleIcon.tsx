@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 export const UserCircleIcon: React.FC<{ className?: string }> = ({ className }) => (

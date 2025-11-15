@@ -19,6 +19,7 @@ export async function fetchApi<T>(endpoint: string, options: FetchApiOptions = {
 
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true', // Add this header to bypass Ngrok warnings
     ...options.headers,
   };
 

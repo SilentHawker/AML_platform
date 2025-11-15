@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 export const BriefcaseIcon: React.FC<{ className?: string }> = ({ className }) => (

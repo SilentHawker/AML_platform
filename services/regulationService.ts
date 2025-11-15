@@ -1,4 +1,3 @@
-
 import type { Regulation } from '../types';
 import { fetchApi } from './api';
 
@@ -6,7 +5,7 @@ import { fetchApi } from './api';
 export const getRegulations = async (): Promise<Regulation[]> => {
     try {
         // The /sources endpoint seems to be the one for regulations
-        const sources = await fetchApi<Regulation[]>('/sources');
+        const sources = await fetchApi<Regulation[]>('/api/v1/sources');
         // Sort by creation date descending
         return sources.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     } catch (error) {

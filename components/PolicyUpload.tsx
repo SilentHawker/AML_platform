@@ -1,5 +1,4 @@
 
-
 import React, { useState, useCallback } from 'react';
 import { createPolicyWithAnalysis } from '../services/policyService';
 import Spinner from './Spinner';

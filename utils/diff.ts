@@ -1,3 +1,4 @@
+
 // A simple diffing utility based on the Longest Common Subsequence algorithm
 // This will help generate a visual representation of text changes.
 

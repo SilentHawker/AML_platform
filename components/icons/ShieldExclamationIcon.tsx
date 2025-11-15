@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 export const ShieldExclamationIcon: React.FC<{ className?: string }> = ({ className }) => (
