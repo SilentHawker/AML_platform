@@ -1,4 +1,3 @@
-
 import { fetchApi } from './api';
 
 export interface MasterPrompt {
@@ -30,5 +29,20 @@ export const createMasterPrompt = async (data: {
   return fetchApi<MasterPrompt>('/api/v1/master-prompts', {
     method: 'POST',
     body: data
+  });
+};
+
+export const updateMasterPrompt = async (
+  promptId: string,
+  data: {
+    name: string;
+    prompt_text: string;
+    description?: string;
+    is_active?: boolean;
+  }
+): Promise<MasterPrompt> => {
+  return fetchApi<MasterPrompt>(`/api/v1/master-prompts/${promptId}`, {
+    method: 'PUT',
+    body: data,
   });
 };
